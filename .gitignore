@@ -1,0 +1,227 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+backend/.env
+frontend/.env.local
+frontend/.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+
+# Data directories (rasmlar, detected faces)
+backend/data/student_images/*
+!backend/data/student_images/.gitkeep
+backend/data/detected_faces/*
+!backend/data/detected_faces/.gitkeep
+backend/data/*
+!backend/data/.gitkeep
+
+# Models (katta fayllar)
+models/
+backend/models/
+*.onnx
+*.pth
+*.pt
+*.h5
+*.pb
+*.tflite
+*.weights
+*.ckpt
+*.pkl
+*.joblib
+
+# InsightFace models
+**/insightface_models/
+**/.insightface/
+~/.insightface/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+*.lock
+temp_images/
+tmp/
+*.cache
+
+# Test images (example images)
+backend/image.png
+backend/*.jpg
+backend/*.jpeg
+backend/*.png
+backend/*.gif
+backend/*.bmp
+backend/*.webp
+!backend/data/student_images/
+!backend/data/detected_faces/
+
+# Node.js / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/.vercel
+frontend/.swc/
+frontend/.cache/
+frontend/dist/
+frontend/build/
+frontend/.env*.local
+frontend/.next-env
+frontend/next-env.d.ts
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/.vercel
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Docker
+*.dockerignore
+docker-compose.override.yml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
+# Scripts output
+*.sh.log
+*.py.log
+
+# System files
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Application specific
+backend/data/
+!backend/data/.gitkeep
+backend/temp_images/
+backend/tmp/
+
+# Keep directory structure but ignore contents
+!backend/data/student_images/.gitkeep
+!backend/data/detected_faces/.gitkeep
+!backend/data/.gitkeep
+

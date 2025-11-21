@@ -1,0 +1,18 @@
+# Bu .gitignore.example fayli - asosiy .gitignore faylini ko'rsatadi
+# .gitignore fayli allaqachon yaratilgan
+
+# Asosiy ignore qilingan narsalar:
+# - Python __pycache__ va .pyc fayllar
+# - Virtual environment (venv/, env/)
+# - Database fayllar (*.db, *.sqlite)
+# - Rasmlar (student_images/, detected_faces/)
+# - Model fayllar (models/, *.onnx, *.pth)
+# - Node modules (frontend/node_modules/)
+# - Next.js build fayllar (.next/, out/)
+# - Environment fayllar (.env, .env.local)
+# - Log fayllar (*.log)
+# - Temporary fayllar (tmp/, temp_images/)
+
+# To'liq .gitignore faylini ko'rish uchun:
+# cat .gitignore
+

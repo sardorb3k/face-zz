@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: face-r-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_DIR=/app/data
+      - DATA_DIR=/app/data
+      - MODEL_DIR=/app/models
+      - USE_GPU=${USE_GPU:-false}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      - ./backend/data:/app/data
+      - ./models:/app/models
+    networks:
+      - face-r-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  video-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.video-worker
+    container_name: face-r-video-worker
+    environment:
+      - API_URL=http://backend:8000
+      - RTSP_CAMERAS=${RTSP_CAMERAS:-}
+      - USE_LAPTOP_CAMERA=${USE_LAPTOP_CAMERA:-true}
+      - LAPTOP_CAMERA_INDEX=${LAPTOP_CAMERA_INDEX:-0}
+      - USE_GPU=${USE_GPU:-false}
+      - MODEL_DIR=/app/models
+      - FACE_DETECTION_THRESHOLD=${FACE_DETECTION_THRESHOLD:-0.5}
+      - FACE_RECOGNITION_THRESHOLD=${FACE_RECOGNITION_THRESHOLD:-0.4}
+      - DEEPSORT_ENABLED=${DEEPSORT_ENABLED:-true}
+      - DUPLICATE_PREVENTION_WINDOW_SECONDS=${DUPLICATE_PREVENTION_WINDOW_SECONDS:-60}
+      - FRAME_SKIP=${FRAME_SKIP:-2}
+      - DETECTED_FACES_DIR=/app/data/detected_faces
+    volumes:
+      - ./backend/data:/app/data
+      - ./models:/app/models
+      - /dev/video0:/dev/video0  # Laptop camera access
+    devices:
+      - /dev/video0:/dev/video0  # Alternative device access
+    networks:
+      - face-r-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # Uncomment for GPU support:
+    # runtime: nvidia
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: face-r-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    networks:
+      - face-r-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  face-r-network:
+    driver: bridge
+
+volumes:
+  face-r-data:
+    driver: local
+
