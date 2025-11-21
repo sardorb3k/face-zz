@@ -108,11 +108,22 @@ class Tracker:
         try:
             # Try to import deepsort
             try:
-                from deep_sort_realtime import DeepSort
+                from deep_sort_realtime.deepsort_tracker import DeepSort
                 self.tracker = DeepSort(max_age=50, n_init=3)
                 logger.info("DeepSORT tracker initialized")
+                
+                # Test the tracker with dummy data to ensure it works
+                import numpy as np
+                test_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+                test_detections = [[10, 10, 20, 20, 0.9]]
+                self.tracker.update_tracks(test_detections, frame=test_frame)
+                logger.info("DeepSORT tracker test successful")
+                
             except ImportError:
-                logger.info("deep_sort_realtime not installed, using IOU-based tracking")
+                logger.warning("deep_sort_realtime not installed, using IOU-based tracking")
+                self.tracker = SimpleTracker()
+            except Exception as e:
+                logger.warning(f"DeepSORT initialization failed ({e}), using IOU-based tracking")
                 self.tracker = SimpleTracker()
         except Exception as e:
             logger.error(f"Error initializing tracker: {e}")
@@ -145,7 +156,19 @@ class Tracker:
             # Convert detections to DeepSORT format: [[x1, y1, x2, y2, confidence], ...]
             detections_formatted = []
             for x, y, w, h, conf in detections:
-                detections_formatted.append([x, y, x + w, y + h, conf])
+                # Convert numpy types to Python native types to prevent type errors
+                try:
+                    x = int(x.item()) if hasattr(x, 'item') else int(x)
+                    y = int(y.item()) if hasattr(y, 'item') else int(y)
+                    w = int(w.item()) if hasattr(w, 'item') else int(w)
+                    h = int(h.item()) if hasattr(h, 'item') else int(h)
+                    conf = float(conf.item()) if hasattr(conf, 'item') else float(conf)
+                    detections_formatted.append([x, y, x + w, y + h, conf])
+                except Exception as e:
+                    logger.warning(f"Error converting detection data: {e}, falling back to simple tracker")
+                    if not hasattr(self, 'fallback_tracker'):
+                        self.fallback_tracker = SimpleTracker()
+                    return self.fallback_tracker.update(detections)
             
             if not detections_formatted:
                 tracks = self.tracker.update_tracks([], frame=frame)
@@ -166,6 +189,9 @@ class Tracker:
             
         except Exception as e:
             logger.error(f"Error updating tracker: {e}")
+            logger.info("Falling back to simple tracking")
             # Fallback to simple tracking
+            if not hasattr(self, 'fallback_tracker'):
+                self.fallback_tracker = SimpleTracker()
             return [(x, y, w, h, idx, conf) for idx, (x, y, w, h, conf) in enumerate(detections)]
 

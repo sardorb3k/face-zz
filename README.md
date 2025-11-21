@@ -119,7 +119,7 @@ Key configuration options:
 - `DUPLICATE_PREVENTION_WINDOW_SECONDS`: Time window for duplicate prevention (default: 60)
 - `FRAME_SKIP`: Process every Nth frame (default: 2)
 - `USE_GPU`: Enable GPU acceleration (default: false)
-- `DEEPSORT_ENABLED`: Enable DeepSORT tracking (default: true)
+- `DEEPSORT_ENABLED`: Enable DeepSORT tracking (default: false - set to true if you want advanced tracking)
 
 ## Database
 

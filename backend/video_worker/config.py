@@ -24,7 +24,7 @@ USE_GPU = os.getenv("USE_GPU", "false").lower() == "true"
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "./models"))
 
 # DeepSORT
-DEEPSORT_ENABLED = os.getenv("DEEPSORT_ENABLED", "true").lower() == "true"
+DEEPSORT_ENABLED = os.getenv("DEEPSORT_ENABLED", "false").lower() == "true"
 
 # Processing settings
 FRAME_SKIP = int(os.getenv("FRAME_SKIP", "2"))  # Process every Nth frame
