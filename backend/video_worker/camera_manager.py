@@ -127,10 +127,16 @@ class CameraManager:
 
 
 def create_camera_managers() -> list[CameraManager]:
-    """Create camera managers from configuration"""
+    """
+    Create camera managers from configuration (DEPRECATED)
+    
+    Note: This function is no longer used by VideoWorker.
+    VideoWorker now uses cameras from database only.
+    Kept for backward compatibility.
+    """
     managers = []
     
-    # RTSP cameras
+    # RTSP cameras (deprecated - use database instead)
     for idx, rtsp_url in enumerate(RTSP_CAMERAS):
         manager = CameraManager(
             camera_id=idx + 1,

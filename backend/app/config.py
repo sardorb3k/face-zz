@@ -34,11 +34,13 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 API_URL = os.getenv("API_URL", f"http://localhost:{API_PORT}")
 
 # Video Worker Settings
-RTSP_CAMERAS = os.getenv("RTSP_CAMERAS", "").split(",") if os.getenv("RTSP_CAMERAS") else []
-RTSP_CAMERAS = [url.strip() for url in RTSP_CAMERAS if url.strip()]
+# Note: RTSP cameras are now configured via database (admin panel)
+# RTSP_CAMERAS env variable is deprecated and no longer used
+# RTSP_CAMERAS = os.getenv("RTSP_CAMERAS", "").split(",") if os.getenv("RTSP_CAMERAS") else []
+# RTSP_CAMERAS = [url.strip() for url in RTSP_CAMERAS if url.strip()]
 
-# Laptop camera (fallback)
-USE_LAPTOP_CAMERA = os.getenv("USE_LAPTOP_CAMERA", "true").lower() == "true"
+# Laptop camera (optional, disabled by default)
+USE_LAPTOP_CAMERA = os.getenv("USE_LAPTOP_CAMERA", "false").lower() == "true"
 LAPTOP_CAMERA_INDEX = int(os.getenv("LAPTOP_CAMERA_INDEX", "0")) if USE_LAPTOP_CAMERA else None
 
 # Duplicate prevention

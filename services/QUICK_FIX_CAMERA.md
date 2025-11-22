@@ -60,3 +60,4 @@ Group o'zgarishlari keyin **yangi terminal ochish** yoki **logout/login qilish**
 
 
 
+

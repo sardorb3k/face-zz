@@ -11,7 +11,7 @@ from typing import Dict
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from .camera_manager import CameraManager, create_camera_managers
+from .camera_manager import CameraManager
 from .face_detector import FaceDetector
 from .face_recognizer import FaceRecognizer
 from .tracker import Tracker
@@ -40,14 +40,23 @@ class VideoWorker:
         self.running = False
     
     def initialize_cameras(self):
-        """Initialize cameras from database and config"""
+        """Initialize cameras from database (only active RTSP cameras)"""
+        from app.config import USE_LAPTOP_CAMERA, LAPTOP_CAMERA_INDEX
+        
         db = SessionLocal()
         try:
-            # Get active cameras from database
-            cameras = db.query(Camera).filter(Camera.is_active == True).all()
+            # Get active RTSP cameras from database
+            cameras = db.query(Camera).filter(
+                Camera.is_active == True,
+                Camera.camera_type == "rtsp"
+            ).all()
             
-            # Create camera managers
+            # Create camera managers for RTSP cameras
             for camera in cameras:
+                if not camera.rtsp_url:
+                    logger.warning(f"Camera {camera.id}: RTSP URL not set, skipping")
+                    continue
+                    
                 manager = CameraManager(
                     camera_id=camera.id,
                     camera_type=camera.camera_type,
@@ -57,17 +66,41 @@ class VideoWorker:
                 self.camera_managers.append(manager)
                 self.trackers[camera.id] = Tracker()
                 self.frame_counters[camera.id] = 0
+                logger.info(f"Added RTSP camera {camera.id}: {camera.rtsp_url}")
             
-            # Also add cameras from config (if not in database)
-            config_managers = create_camera_managers()
-            for manager in config_managers:
-                # Check if already added from database
-                if not any(m.camera_id == manager.camera_id for m in self.camera_managers):
-                    self.camera_managers.append(manager)
-                    self.trackers[manager.camera_id] = Tracker()
-                    self.frame_counters[manager.camera_id] = 0
+            # Add laptop camera only if enabled in env
+            if USE_LAPTOP_CAMERA and LAPTOP_CAMERA_INDEX is not None:
+                # Check if laptop camera already exists in database
+                laptop_camera = db.query(Camera).filter(
+                    Camera.camera_type == "laptop",
+                    Camera.is_active == True
+                ).first()
+                
+                if laptop_camera:
+                    # Use database laptop camera
+                    manager = CameraManager(
+                        camera_id=laptop_camera.id,
+                        camera_type=laptop_camera.camera_type,
+                        rtsp_url=laptop_camera.rtsp_url,
+                        camera_index=laptop_camera.camera_index or LAPTOP_CAMERA_INDEX
+                    )
+                    logger.info(f"Added laptop camera from database: {laptop_camera.id}")
+                else:
+                    # Create temporary laptop camera manager (not in database)
+                    laptop_id = max([c.id for c in cameras] + [0]) + 1 if cameras else 1
+                    manager = CameraManager(
+                        camera_id=laptop_id,
+                        camera_type="laptop",
+                        rtsp_url=None,
+                        camera_index=LAPTOP_CAMERA_INDEX
+                    )
+                    logger.info(f"Added laptop camera from config: index {LAPTOP_CAMERA_INDEX}")
+                
+                self.camera_managers.append(manager)
+                self.trackers[manager.camera_id] = Tracker()
+                self.frame_counters[manager.camera_id] = 0
             
-            logger.info(f"Initialized {len(self.camera_managers)} cameras")
+            logger.info(f"Initialized {len(self.camera_managers)} cameras ({len(cameras)} RTSP, {'1 laptop' if USE_LAPTOP_CAMERA else '0 laptop'})")
             
         finally:
             db.close()

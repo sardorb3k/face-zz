@@ -14,7 +14,7 @@ RTSP_CAMERAS = os.getenv("RTSP_CAMERAS", "").split(",") if os.getenv("RTSP_CAMER
 RTSP_CAMERAS = [url.strip() for url in RTSP_CAMERAS if url.strip()]
 
 LAPTOP_CAMERA_INDEX = int(os.getenv("LAPTOP_CAMERA_INDEX", "0"))
-USE_LAPTOP_CAMERA = os.getenv("USE_LAPTOP_CAMERA", "true").lower() == "true"
+USE_LAPTOP_CAMERA = os.getenv("USE_LAPTOP_CAMERA", "false").lower() == "true"
 
 # Face detection/recognition
 FACE_DETECTION_THRESHOLD = float(os.getenv("FACE_DETECTION_THRESHOLD", "0.5"))

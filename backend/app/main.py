@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import init_db, engine
 from .models import Base
 from .config import CORS_ORIGINS
-from .routers import students, attendance, upload, cameras, websocket
+from .routers import students, attendance, upload, cameras, websocket, auth, verification, config
 from .static_files import setup_static_files
 from .background_tasks import start_video_worker, stop_video_worker, is_video_worker_running
-from .config import USE_LAPTOP_CAMERA, RTSP_CAMERAS, LAPTOP_CAMERA_INDEX
+from .config import USE_LAPTOP_CAMERA, LAPTOP_CAMERA_INDEX
 import logging
 import os
 
@@ -46,6 +46,9 @@ app.include_router(attendance.router, prefix="/api/attendance", tags=["attendanc
 app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 app.include_router(cameras.router, prefix="/api/cameras", tags=["cameras"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(verification.router, prefix="/api/verification", tags=["verification"])
+app.include_router(config.router, prefix="/api/config", tags=["config"])
 
 
 @app.get("/")
@@ -65,14 +68,23 @@ async def startup_event():
     auto_start = os.getenv("AUTO_START_VIDEO_WORKER", "true").lower() == "true"
     
     if auto_start:
-        # Check if there are cameras configured
-        has_cameras = (USE_LAPTOP_CAMERA and LAPTOP_CAMERA_INDEX is not None) or len(RTSP_CAMERAS) > 0
+        # Check if there are active cameras in database
+        from app.database import SessionLocal
+        from app.models import Camera
         
-        if has_cameras:
-            logger.info("Video worker avtomatik ishga tushirilmoqda...")
-            start_video_worker()
-        else:
-            logger.info("Kamera sozlanganmagan, video worker ishga tushirilmaydi")
+        db = SessionLocal()
+        try:
+            active_cameras = db.query(Camera).filter(Camera.is_active == True).count()
+            has_laptop = USE_LAPTOP_CAMERA and LAPTOP_CAMERA_INDEX is not None
+            has_cameras = active_cameras > 0 or has_laptop
+            
+            if has_cameras:
+                logger.info(f"Video worker avtomatik ishga tushirilmoqda... ({active_cameras} active cameras in database, laptop: {has_laptop})")
+                start_video_worker()
+            else:
+                logger.info("Hech qanday active kamera topilmadi, video worker ishga tushirilmaydi")
+        finally:
+            db.close()
     else:
         logger.info("AUTO_START_VIDEO_WORKER=false, video worker qo'lda ishga tushirilishi kerak")
 
