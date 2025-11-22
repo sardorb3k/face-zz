@@ -72,9 +72,8 @@ export default function StudentDashboard() {
   };
 
   const handleCameraCapture = async (imageBlob: Blob) => {
-    setShowCamera(false);
-    const capturedFile = new File([imageBlob], "face.jpg", { type: "image/jpeg" });
-    setFile(capturedFile);
+    // Don't close camera immediately - wait for all images
+    const capturedFile = new File([imageBlob], `face_${Date.now()}.jpg`, { type: "image/jpeg" });
     setMessage(null);
     
     // Auto-upload after capture
@@ -105,11 +104,22 @@ export default function StudentDashboard() {
         throw new Error(data.detail || "Upload failed");
       }
 
+      // Update status after each upload
       setVerificationStatus(data);
-      setMessage({
-        type: data.is_match ? "success" : "error",
-        text: data.message || (data.is_match ? "Face verified successfully!" : "Face does not match"),
-      });
+      
+      // If this is the last image or embedding was created, close camera
+      if (data.image_uploaded || data.is_match) {
+        setShowCamera(false);
+        setMessage({
+          type: "success",
+          text: data.message || "Yuz rasmlari muvaffaqiyatli yuklandi!",
+        });
+      } else {
+        setMessage({
+          type: "info",
+          text: `Rasm yuklandi. Yana rasm olinmoqda...`,
+        });
+      }
     } catch (error: any) {
       setMessage({ type: "error", text: error.message || "Upload failed" });
     } finally {
@@ -353,18 +363,85 @@ export default function StudentDashboard() {
               {verificationStatus && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                   <h3 className="font-semibold mb-2">Tasdiqlash Tafsilotlari:</h3>
-                  <p className="text-sm">
-                    <strong>Holat:</strong> {verificationStatus.is_match ? "✅ Mos keladi" : "❌ Mos kelmaydi"}
-                  </p>
-                  <p className="text-sm">
-                    <strong>Aniqlik:</strong>{" "}
-                    {verificationStatus.confidence
-                      ? (verificationStatus.confidence * 100).toFixed(2) + "%"
-                      : "N/A"}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Sizning tasdiqlash so'rovingiz admin tomonidan ko'rib chiqilmoqda.
-                  </p>
+                  
+                  {/* Show message if available */}
+                  {verificationStatus.message && (
+                    <div className={`mb-3 p-3 rounded-lg ${
+                      verificationStatus.image_uploaded
+                        ? "bg-green-50 border border-green-200"
+                        : verificationStatus.message.includes("yuklandi") || verificationStatus.message.includes("yaratildi")
+                        ? "bg-green-50 border border-green-200"
+                        : verificationStatus.is_match 
+                        ? "bg-green-50 border border-green-200"
+                        : verificationStatus.message.includes("No face data") || verificationStatus.message.includes("5 ta rasm")
+                        ? "bg-yellow-50 border border-yellow-200"
+                        : "bg-red-50 border border-red-200"
+                    }`}>
+                      <p className={`text-sm ${
+                        verificationStatus.image_uploaded
+                          ? "text-green-800"
+                          : verificationStatus.message.includes("yuklandi") || verificationStatus.message.includes("yaratildi")
+                          ? "text-green-800"
+                          : verificationStatus.is_match
+                          ? "text-green-800"
+                          : verificationStatus.message.includes("No face data") || verificationStatus.message.includes("5 ta rasm")
+                          ? "text-yellow-800"
+                          : "text-red-800"
+                      }`}>
+                        {verificationStatus.image_uploaded && "✅ "}
+                        {verificationStatus.message.includes("yuklandi") && "✅ "}
+                        {verificationStatus.message.includes("yaratildi") && "✅ "}
+                        {verificationStatus.message.includes("No face data") && "⚠️ "}
+                        {verificationStatus.message}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {verificationStatus.confidence !== undefined && 
+                   verificationStatus.confidence !== null && 
+                   verificationStatus.confidence > 0 && (
+                    <p className="text-sm">
+                      <strong>Aniqlik:</strong> {(verificationStatus.confidence * 100).toFixed(2)}%
+                    </p>
+                  )}
+                  
+                  {(verificationStatus.confidence === undefined || 
+                    verificationStatus.confidence === null || 
+                    verificationStatus.confidence === 0) && 
+                   !verificationStatus.image_uploaded && (
+                    <p className="text-sm">
+                      <strong>Aniqlik:</strong> N/A
+                    </p>
+                  )}
+                  
+                  {verificationStatus.image_uploaded && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800 font-semibold">
+                        🎉 Muvaffaqiyatli!
+                      </p>
+                      <p className="text-sm text-blue-700 mt-1">
+                        Endi siz davomat olishingiz mumkin. Video kameralar sizni avtomatik aniqlaydi.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {!verificationStatus.image_uploaded && 
+                   !verificationStatus.message?.includes("yuklandi") &&
+                   !verificationStatus.message?.includes("yaratildi") &&
+                   !verificationStatus.message?.includes("No face data") &&
+                   !verificationStatus.message?.includes("5 ta rasm") && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      Sizning tasdiqlash so'rovingiz admin tomonidan ko'rib chiqilmoqda.
+                    </p>
+                  )}
+                  
+                  {verificationStatus.message?.includes("5 ta rasm") && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Eslatma:</strong> Sizda allaqachon 5 ta yuz rasmi bor. Yangi rasm qo'shish uchun admin bilan bog'laning.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -377,6 +454,7 @@ export default function StudentDashboard() {
         <FaceVerificationCamera
           onCapture={handleCameraCapture}
           onClose={() => setShowCamera(false)}
+          requiredImages={3} // 3 ta rasm olish embedding sifatini yaxshilash uchun
         />
       )}
     </div>

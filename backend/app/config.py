@@ -5,6 +5,20 @@ import os
 from pathlib import Path
 from typing import List
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent.parent / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✅ .env fayl yuklandi: {env_path}")
+    else:
+        print(f"ℹ️  .env fayl topilmadi: {env_path}")
+except ImportError:
+    print("⚠️  python-dotenv package o'rnatilmagan, .env fayl yuklanmaydi")
+except Exception as e:
+    print(f"⚠️  .env fayl yuklashda xatolik: {e}")
+
 # Base directories
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))

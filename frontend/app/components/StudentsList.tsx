@@ -81,6 +81,9 @@ export default function StudentsList({ onStudentAdded }: StudentsListProps = {})
                 Holat
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Yuz Ma'lumotlari
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Amallar
               </th>
             </tr>
@@ -88,7 +91,7 @@ export default function StudentsList({ onStudentAdded }: StudentsListProps = {})
           <tbody className="bg-white divide-y divide-gray-200">
             {students.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                   Talabalar topilmadi
                 </td>
               </tr>
@@ -119,6 +122,30 @@ export default function StudentsList({ onStudentAdded }: StudentsListProps = {})
                     >
                       {student.is_active ? 'Faol' : 'Nofaol'}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-gray-600">Rasmlar:</span>
+                        <span className={`font-medium ${
+                          (student.images_count || 0) > 0 ? 'text-green-600' : 'text-gray-400'
+                        }`}>
+                          {student.images_count || 0}/5
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-gray-600">Embedding:</span>
+                        {student.has_embedding ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            ✅ Yaratilgan
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⚠️ Yo'q
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">

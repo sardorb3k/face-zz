@@ -9,6 +9,10 @@ from .config import ATTENDANCE_ENDPOINT, DUPLICATE_PREVENTION_WINDOW_SECONDS, DE
 import cv2
 import uuid
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from app.database import SessionLocal
+from app.models import Student
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +101,22 @@ class AttendanceManager:
                 key = (student_id, camera_id)
                 self.last_attendance[key] = datetime.utcnow()
                 
-                logger.info(f"Attendance logged: Student {student_id} on camera {camera_id} (confidence: {confidence:.3f})")
+                # Get student name from database
+                student_name = None
+                try:
+                    db = SessionLocal()
+                    student = db.query(Student).filter(Student.id == student_id).first()
+                    if student:
+                        student_name = student.full_name
+                    db.close()
+                except Exception as e:
+                    logger.debug(f"Could not fetch student name: {e}")
+                
+                # Console log for successful attendance logging
+                student_info = f"{student_name} (ID: {student_id})" if student_name else f"Student ID {student_id}"
+                log_message = f"✅ BU TALABA DAVOMOTI SAQLANDI: {student_info} (camera: {camera_id}, confidence: {confidence:.3f})"
+                logger.info(log_message)
+                print(log_message)
                 return True
             else:
                 logger.error(f"Failed to log attendance: {response.status_code} - {response.text}")

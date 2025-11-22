@@ -98,31 +98,97 @@ async def verify_face(
         file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Could not detect face in image")
     
-    # Compare with student's existing embeddings
-    embedding_service = get_embedding_service()
-    match = embedding_service.find_matching_student(db, embedding, FACE_RECOGNITION_THRESHOLD)
+    # Get student's embedding from database
+    from ..models import StudentEmbedding, StudentImage
+    student_embedding_record = db.query(StudentEmbedding).filter(
+        StudentEmbedding.student_id == student_id
+    ).first()
     
-    # Check if matches current student
-    is_match = match and match[0] == student_id
+    confidence = None
+    is_match = False
+    image_uploaded = False
+    
+    if student_embedding_record:
+        # Compare with student's own embedding
+        student_embedding = student_embedding_record.get_embedding_array()
+        match, similarity = face_service.compare_faces(
+            embedding,
+            student_embedding,
+            FACE_RECOGNITION_THRESHOLD
+        )
+        confidence = float(similarity)
+        is_match = match
+    else:
+        # Student has no embedding yet - automatically upload this face image
+        # Check if student already has 5 images
+        existing_images = db.query(StudentImage).filter(StudentImage.student_id == student_id).count()
+        
+        if existing_images < 5:
+            # Move file from verify_ to student_images directory
+            file_extension = Path(file_path).suffix
+            new_file_name = f"{student_id}_{uuid.uuid4()}{file_extension}"
+            new_file_path = IMAGES_DIR / new_file_name
+            
+            try:
+                shutil.move(str(file_path), str(new_file_path))
+                
+                # Create student image record
+                student_image = StudentImage(
+                    student_id=student_id,
+                    image_path=str(new_file_path)
+                )
+                db.add(student_image)
+                db.commit()
+                
+                # Update student embedding
+                embedding_service = get_embedding_service()
+                embedding_created = embedding_service.update_student_embedding(db, student_id)
+                
+                image_uploaded = True
+                file_path = new_file_path  # Update file_path for verification record
+                
+                logger.info(f"Automatically uploaded face image for student {student_id} and created embedding")
+            except Exception as e:
+                logger.error(f"Error uploading face image: {e}")
+                # Keep original file_path for verification
+        else:
+            logger.warning(f"Student {student_id} already has 5 images, cannot upload more")
     
     # Create verification request
     verification = FaceVerification(
         student_id=student_id,
         camera_id=camera.id if camera else None,
         image_path=str(file_path),
-        verification_status="pending",
-        confidence=match[1] if match else 0.0
+        verification_status="pending" if not is_match else "approved",  # Auto-approve if match
+        confidence=confidence if confidence is not None else 0.0  # Database requires float, but we'll return None in API
     )
     db.add(verification)
+    
+    # If match, mark as reviewed
+    if is_match:
+        verification.verification_status = "approved"
+        verification.reviewed_at = datetime.utcnow()
+    
     db.commit()
     db.refresh(verification)
+    
+    # Prepare response message
+    if image_uploaded:
+        message = "Yuz rasmi muvaffaqiyatli yuklandi va embedding yaratildi! Endi davomat olishingiz mumkin."
+    elif is_match:
+        message = "Face verified successfully"
+    elif student_embedding_record:
+        message = "Face does not match student"
+    else:
+        message = "Yuz rasmi yuklandi, lekin sizda allaqachon 5 ta rasm bor. Admin tomonidan ko'rib chiqilmoqda."
     
     return {
         "success": True,
         "verification_id": verification.id,
         "is_match": is_match,
-        "confidence": match[1] if match else 0.0,
-        "message": "Face verified successfully" if is_match else "Face does not match student"
+        "confidence": confidence,  # None if no embedding, otherwise similarity score
+        "image_uploaded": image_uploaded,
+        "message": message
     }
 
 

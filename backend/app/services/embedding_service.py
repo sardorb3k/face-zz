@@ -165,7 +165,10 @@ class EmbeddingService:
         student_embeddings = self.load_all_embeddings(db)
         
         if not student_embeddings:
+            logger.warning("Hech qanday student embedding topilmadi!")
             return None
+        
+        logger.debug(f"Topilgan embeddings: {len(student_embeddings)} ta")
         
         # Find best match
         best_match = None
@@ -178,9 +181,16 @@ class EmbeddingService:
                 threshold
             )
             
+            logger.debug(f"Student {student_id}: similarity={similarity:.3f}, match={match}, threshold={threshold}")
+            
             if match and similarity > best_similarity:
                 best_similarity = similarity
                 best_match = (student_id, similarity)
+        
+        if best_match:
+            logger.info(f"Eng yaxshi match: Student ID {best_match[0]}, similarity: {best_match[1]:.3f}")
+        else:
+            logger.debug(f"Match topilmadi (threshold: {threshold})")
         
         return best_match
 

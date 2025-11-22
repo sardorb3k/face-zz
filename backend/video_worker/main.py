@@ -33,7 +33,11 @@ class VideoWorker:
     def __init__(self):
         self.camera_managers: list[CameraManager] = []
         self.face_detector = FaceDetector()
+        logger.info("Face detector initialized")
+        
         self.face_recognizer = FaceRecognizer()
+        # FaceRecognizer already loads embeddings in __init__
+        
         self.trackers: Dict[int, Tracker] = {}  # Per-camera trackers
         self.attendance_manager = AttendanceManager()
         self.frame_counters: Dict[int, int] = {}  # Per-camera frame counters
@@ -86,15 +90,28 @@ class VideoWorker:
                     )
                     logger.info(f"Added laptop camera from database: {laptop_camera.id}")
                 else:
-                    # Create temporary laptop camera manager (not in database)
-                    laptop_id = max([c.id for c in cameras] + [0]) + 1 if cameras else 1
-                    manager = CameraManager(
-                        camera_id=laptop_id,
+                    # Create laptop camera in database if it doesn't exist
+                    logger.info(f"Laptop camera database'da topilmadi, yaratilmoqda...")
+                    laptop_camera = Camera(
+                        name="Laptop Camera",
                         camera_type="laptop",
-                        rtsp_url=None,
-                        camera_index=LAPTOP_CAMERA_INDEX
+                        camera_index=LAPTOP_CAMERA_INDEX,
+                        is_active=True,
+                        location="Local"
                     )
-                    logger.info(f"Added laptop camera from config: index {LAPTOP_CAMERA_INDEX}")
+                    db.add(laptop_camera)
+                    db.commit()
+                    db.refresh(laptop_camera)
+                    logger.info(f"Laptop camera database'ga qo'shildi: ID {laptop_camera.id}")
+                    
+                    # Use the newly created camera
+                    manager = CameraManager(
+                        camera_id=laptop_camera.id,
+                        camera_type=laptop_camera.camera_type,
+                        rtsp_url=laptop_camera.rtsp_url,
+                        camera_index=laptop_camera.camera_index or LAPTOP_CAMERA_INDEX
+                    )
+                    logger.info(f"Added laptop camera from database: {laptop_camera.id} (index: {LAPTOP_CAMERA_INDEX})")
                 
                 self.camera_managers.append(manager)
                 self.trackers[manager.camera_id] = Tracker()
@@ -123,7 +140,7 @@ class VideoWorker:
             detections = self.face_detector.detect_faces(frame)
             
             if detections:
-                logger.debug(f"📸 {len(detections)} ta yuz aniqlandi (camera: {camera_id})")
+                logger.info(f"📸 {len(detections)} ta yuz aniqlandi (camera: {camera_id})")
             
             if not detections:
                 return
@@ -161,11 +178,28 @@ class VideoWorker:
                         face_image=face_image
                     )
                     
-                    if not success:
-                        logger.debug(f"⚠️  Duplicate prevention: Student {student_id} on camera {camera_id} - attendance not logged")
+                    if success:
+                        # Get student name from database
+                        student_name = None
+                        try:
+                            db = SessionLocal()
+                            student = db.query(Student).filter(Student.id == student_id).first()
+                            if student:
+                                student_name = student.full_name
+                            db.close()
+                        except Exception as e:
+                            logger.debug(f"Could not fetch student name: {e}")
+                        
+                        # Console log for successful attendance logging
+                        student_info = f"{student_name} (ID: {student_id})" if student_name else f"Student ID {student_id}"
+                        log_message = f"✅ BU TALABA DAVOMOTI SAQLANDI: {student_info} (camera: {camera_id}, confidence: {similarity:.3f})"
+                        logger.info(log_message)
+                        print(log_message)
+                    else:
+                        logger.info(f"⚠️  Duplicate prevention: Student {student_id} on camera {camera_id} - attendance not logged")
                 else:
                     # Log when face detected but not recognized
-                    logger.debug(f"❓ Yuz aniqlandi, lekin talaba tanilmadi (track: {track_id}, camera: {camera_id})")
+                    logger.info(f"❓ Yuz aniqlandi, lekin talaba tanilmadi (track: {track_id}, camera: {camera_id}) - embedding topilmadi yoki confidence past")
         
         except Exception as e:
             logger.error(f"Error processing frame from camera {camera_id}: {e}")
@@ -175,7 +209,11 @@ class VideoWorker:
         logger.info("Starting video worker...")
         
         self.initialize_cameras()
+        logger.info(f"Initialized {len(self.camera_managers)} cameras")
+        
         self.connect_cameras()
+        connected_count = sum(1 for m in self.camera_managers if m.is_connected)
+        logger.info(f"Connected {connected_count}/{len(self.camera_managers)} cameras")
         
         self.running = True
         
@@ -184,26 +222,38 @@ class VideoWorker:
             logger.warning("Hech qanday kamera topilmadi, video worker to'xtatilmoqda")
             return
         
+        # Check if any cameras are connected
+        if connected_count == 0:
+            logger.warning("Hech qanday kamera ulanmadi, video worker to'xtatilmoqda")
+            return
+        
+        logger.info("Video worker ishga tushdi va frame'larni qayta ishlayapti...")
+        
         while self.running:
             try:
                 # Process each camera
                 for manager in self.camera_managers:
                     if not manager.is_connected:
                         # Try to reconnect
+                        logger.warning(f"Camera {manager.camera_id} ulanmagan, qayta ulanmoqda...")
                         if not manager.reconnect():
                             continue
+                        logger.info(f"Camera {manager.camera_id} qayta ulandi")
                     
                     # Read frame
                     result = manager.read_frame()
                     
                     if result is None:
                         # Frame read failed, will retry on next iteration
+                        logger.debug(f"Camera {manager.camera_id}: Frame o'qib bo'lmadi")
                         continue
                     
                     success, frame = result
                     
                     if success and frame is not None:
                         self.process_frame(manager.camera_id, frame)
+                    else:
+                        logger.debug(f"Camera {manager.camera_id}: Frame None yoki success=False")
                 
                 # Cleanup old attendance records periodically
                 self.attendance_manager.cleanup_old_records()

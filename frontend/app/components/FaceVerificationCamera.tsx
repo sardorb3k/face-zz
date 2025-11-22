@@ -7,11 +7,13 @@ import { Camera } from "@mediapipe/camera_utils";
 interface FaceVerificationCameraProps {
   onCapture: (imageBlob: Blob) => void;
   onClose: () => void;
+  requiredImages?: number; // Number of images to capture (default: 3)
 }
 
 export default function FaceVerificationCamera({
   onCapture,
   onClose,
+  requiredImages = 3, // Default: 3 images for better embedding quality
 }: FaceVerificationCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,10 +21,14 @@ export default function FaceVerificationCamera({
   const [faceDetected, setFaceDetected] = useState(false);
   const [faceDistance, setFaceDistance] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [capturedImages, setCapturedImages] = useState<number>(0);
+  const [isAutoCapturing, setIsAutoCapturing] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const faceDetectionRef = useRef<FaceDetection | null>(null);
   const cameraRef = useRef<Camera | null>(null);
+  const lastCaptureTimeRef = useRef<number>(0);
+  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize MediaPipe Face Detection
   useEffect(() => {
@@ -142,6 +148,13 @@ export default function FaceVerificationCamera({
 
     if (!ctx) return;
 
+    // Prevent too frequent captures (minimum 500ms between captures)
+    const now = Date.now();
+    if (now - lastCaptureTimeRef.current < 500) {
+      return;
+    }
+    lastCaptureTimeRef.current = now;
+
     setIsCapturing(true);
 
     // Draw current frame
@@ -153,24 +166,82 @@ export default function FaceVerificationCamera({
     canvas.toBlob(
       (blob) => {
         if (blob) {
+          const newCount = capturedImages + 1;
+          setCapturedImages(newCount);
+          
+          // Send this image immediately
           onCapture(blob);
-          setIsCapturing(false);
+          
+          // If we've captured all required images, stop capturing
+          if (newCount >= requiredImages) {
+            setIsCapturing(false);
+            setIsAutoCapturing(false);
+            // Clear interval
+            if (captureIntervalRef.current) {
+              clearInterval(captureIntervalRef.current);
+              captureIntervalRef.current = null;
+            }
+            // Close camera after a short delay
+            setTimeout(() => {
+              onClose();
+            }, 1000);
+          } else {
+            setIsCapturing(false);
+          }
         }
       },
       "image/jpeg",
       0.95
     );
-  }, [faceDetected, onCapture]);
+  }, [faceDetected, onCapture, capturedImages, requiredImages, onClose]);
 
-  // Auto-capture when face is close enough
+  // Auto-capture multiple images when face is close enough
   useEffect(() => {
-    if (faceDetected && faceDistance !== null && faceDistance > 0.7 && !isCapturing) {
-      const timer = setTimeout(() => {
+    if (
+      faceDetected && 
+      faceDistance !== null && 
+      faceDistance > 0.15 && // Face is close enough (15% of frame)
+      !isCapturing && 
+      !isAutoCapturing &&
+      capturedImages < requiredImages
+    ) {
+      // Start auto-capturing
+      setIsAutoCapturing(true);
+      
+      // Capture first image immediately
+      setTimeout(() => {
         captureImage();
-      }, 500); // Wait 500ms to ensure face is stable
-      return () => clearTimeout(timer);
+      }, 500);
+      
+      // Then capture remaining images at intervals
+      captureIntervalRef.current = setInterval(() => {
+        if (capturedImages < requiredImages - 1 && faceDetected && faceDistance && faceDistance > 0.15) {
+          captureImage();
+        } else {
+          // Stop capturing if we have enough or face moved away
+          if (captureIntervalRef.current) {
+            clearInterval(captureIntervalRef.current);
+            captureIntervalRef.current = null;
+          }
+          setIsAutoCapturing(false);
+        }
+      }, 800); // Capture every 800ms
+      
+      return () => {
+        if (captureIntervalRef.current) {
+          clearInterval(captureIntervalRef.current);
+          captureIntervalRef.current = null;
+        }
+      };
+    } else if ((!faceDetected || faceDistance === null || faceDistance <= 0.15) && isAutoCapturing) {
+      // Stop capturing if face moved away
+      if (captureIntervalRef.current) {
+        clearInterval(captureIntervalRef.current);
+        captureIntervalRef.current = null;
+      }
+      setIsAutoCapturing(false);
     }
-  }, [faceDetected, faceDistance, isCapturing, captureImage]);
+  }, [faceDetected, faceDistance, isCapturing, isAutoCapturing, capturedImages, requiredImages, captureImage]);
 
   // Start camera on mount
   useEffect(() => {
@@ -221,8 +292,17 @@ export default function FaceVerificationCamera({
 
           {faceDetected && faceDistance !== null && (
             <div className="absolute top-4 left-4 bg-black bg-opacity-75 text-white px-4 py-2 rounded">
-              {faceDistance > 0.7 ? (
-                <p className="text-green-400">✅ Yuz yaqin! Capture qilinmoqda...</p>
+              {faceDistance > 0.15 ? (
+                <div>
+                  <p className="text-green-400">
+                    ✅ Yuz yaqin! {capturedImages}/{requiredImages} rasm olingan
+                  </p>
+                  {isAutoCapturing && (
+                    <p className="text-sm text-green-300 mt-1">
+                      Avtomatik rasm olinmoqda...
+                    </p>
+                  )}
+                </div>
               ) : (
                 <p className="text-yellow-400">
                   ⚠️ Yuzni yaqinlashtiring ({Math.round(faceDistance * 100)}%)
@@ -230,27 +310,58 @@ export default function FaceVerificationCamera({
               )}
             </div>
           )}
+          
+          {capturedImages > 0 && capturedImages < requiredImages && (
+            <div className="absolute bottom-4 left-4 right-4 bg-blue-600 bg-opacity-90 text-white px-4 py-3 rounded">
+              <p className="text-center font-semibold">
+                {capturedImages}/{requiredImages} rasm yuklandi
+              </p>
+              <p className="text-center text-sm mt-1">
+                Yuzingizni kamerada ushlab turing...
+              </p>
+            </div>
+          )}
+          
+          {capturedImages >= requiredImages && (
+            <div className="absolute inset-0 flex items-center justify-center bg-green-600 bg-opacity-90 rounded-lg">
+              <div className="text-white text-center">
+                <p className="text-2xl font-bold mb-2">✅ Muvaffaqiyatli!</p>
+                <p className="text-lg">{requiredImages} ta rasm yuklandi</p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex justify-center space-x-4">
           <button
             onClick={captureImage}
-            disabled={!faceDetected || isCapturing}
+            disabled={!faceDetected || isCapturing || capturedImages >= requiredImages}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isCapturing ? "Capture qilinmoqda..." : "Capture"}
+            {isCapturing ? "Capture qilinmoqda..." : capturedImages >= requiredImages ? "Yakunlandi" : "Qo'lda Capture"}
           </button>
           <button
             onClick={onClose}
             className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
           >
-            Bekor qilish
+            {capturedImages >= requiredImages ? "Yopish" : "Bekor qilish"}
           </button>
         </div>
 
         <p className="mt-4 text-sm text-gray-600 text-center">
-          Yuzingizni kameraga yaqinlashtiring. Yuz aniq ko'ringanda avtomatik capture qilinadi.
+          Yuzingizni kameraga yaqinlashtiring. {requiredImages} ta rasm avtomatik olinadi (embedding sifatini yaxshilash uchun).
         </p>
+        
+        {capturedImages > 0 && (
+          <div className="mt-2 flex justify-center">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${(capturedImages / requiredImages) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
